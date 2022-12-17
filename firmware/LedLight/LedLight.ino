@@ -1,191 +1,142 @@
-#include <FastLED.h>
-#define FASTLED_ALLOW_INTERRUPTS 1
+//#define debug
 
-#include <IRremote.hpp>
-#define DECODE_NEC
+// user variables
+uint8_t mode = 0;         // Current mode (start mode)
+uint8_t brightness = 40;  // Current brightness
+uint8_t scale = 2;        // Scale, for some modes
 
-//#define LED_PIN 2 // REAL USING
-//#define IR_PIN 14 // REAL USING
+// system variables
+uint8_t code;         // Code of button
+uint8_t counter = 0;  // Iteration counter, for some modes
+uint8_t modes = 5;    // number of modes
+int8_t dir = 1;
 
+uint8_t r = 255;
+uint8_t g = 255;
+uint8_t b = 255;
+
+uint8_t h = 0;
+uint8_t s = 0;
+uint8_t v = 255;
+
+#ifdef debug
 #define LED_PIN 4
 #define IR_PIN 3
+#define LED_NUM 5
+#else
+#define LED_PIN 2    // Use for final firmware
+#define IR_PIN 14    // Use for final firmware
+#define LED_NUM 300  // Use for final firmware
+#endif
 
-#define LED_NUM 300
-
-byte mode = 0;
-byte modes = 6;
-byte counter = 0;
-byte brightness = 40;
-byte scale = 2;
-bool redraw = false;
-uint8_t code;
-
-constexpr uint32_t buttons2[4][6] = {
-  {
-    16187647,
-    16195807,
-    16191727,
-    16199887,
-    16189687,
-    16197847,
-  },
-  {
-    16220287,
-    16228447,
-    16224367,
-    16232527,
-    16222327,
-    16230487,
-  },
-  {
-    16203967,
-    16212127,
-    16208047,
-    16216207,
-    16206007,
-    16214167,
-  },
-  {
-    16236607,
-    16244767,
-    16240687,
-    16248847,
-    16238647,
-    16246807,
-  },
-};
-
-constexpr uint8_t buttons[6][4] = {
-  {
-    0,
-    1,
-    2,
-    3,
-  },
-  { 4, 5, 6, 7 },
-  { 8, 9, 10, 11 },
-  { 12, 13, 14, 15 },
-  { 16, 17, 18, 19 },
-  { 20, 21, 22, 23 },
-};
-
+// Connecting library
+#include <FastLED.h>
 CRGB leds[LED_NUM];
+#include <IRremote.hpp>
+#include "buttons.h"
 
+// Using NEC remote controller
+#define DECODE_NEC
 
 void setup() {
-  Serial.begin(9600);
-  IrReceiver.begin(IR_PIN);
-  FastLED.addLeds<WS2813, LED_PIN, GRB>(leds, LED_NUM).setCorrection(TypicalLEDStrip);
-  FastLED.setBrightness(brightness);
-  attachInterrupt(digitalPinToInterrupt(IR_PIN), decodeIR, FALLING);
-}
-
-void decodeIR() {
-  if (IrReceiver.decode()) {
-    if (IrReceiver.decodedIRData.protocol == NEC) {
-      code = IrReceiver.decodedIRData.command;
-      Serial.println("Code: " + String(code));
-      checkKey();
-      Serial.println("Mode: " + String(mode));
-    }
-    IrReceiver.resume();
-  }
+#ifdef debug
+  Serial.begin(9600);   // Initialization Serial for debug
+  pinMode(9, OUTPUT);   // Red pin for LED
+  pinMode(10, OUTPUT);  // Blue pin for LED
+  pinMode(5, OUTPUT);   // Green pin for LED
+#endif
+  IrReceiver.begin(IR_PIN);                                                             // Setup pin for IR receiver
+  FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, LED_NUM).setCorrection(TypicalLEDStrip);  // Create strip
+  FastLED.setBrightness(brightness);                                                    // Set default brightness
 }
 
 void loop() {
+  if (IrReceiver.decode()) {  // If data received
+    decodeIR();               // Button handler
+    IrReceiver.resume();      // Resume button listening
+  }
+
   switch (mode) {
+    case 0:
+      staticColorRGB(0, 0, 0);
+      break;
+
+    case 1:
+      staticColorRGB(r, g, b);
+      break;
+
+    case 2:
+      staticColorHSV(h, s, v);
+      break;
+
+    case 3:
+      for (int i = 0; i < LED_NUM; i++) {
+        leds[i] = CHSV(counter + i * scale, 255, 255);
+      }
+      counter++;
+      break;
+
+    case 4:
+      leds[random(0, LED_NUM)] = CHSV(random(0, 255), 255, 255);
+      break;
+
     case 5:
-      rainbow();
-      FastLED.show();
+      if (counter % 8 == 0) {
+        staticColorRGB(255, 0, 0); // red
+      } else if  (counter % 8 == 1) {
+        staticColorRGB(0, 0, 0); // black
+      } else if (counter % 8 == 2) {
+        staticColorRGB(255, 0, 0); // red
+      } else if (counter % 8 == 3) {
+        staticColorRGB(0, 0, 0); // black
+      } else if  (counter % 8 == 4) {
+        staticColorRGB(0, 0, 255); // blue
+      } else if (counter % 8 == 5) {
+        staticColorRGB(0, 0, 0); // black
+      } else if  (counter % 8 == 6) {
+        staticColorRGB(0, 0, 255); // blue
+      } else if (counter % 8 == 7) {
+        staticColorRGB(0, 0, 0); // black
+      }
+      
+      counter++;
       break;
   }
-}
-
-void checkKey() {
-  switch (code) {
-    case buttons[0][0]: enable(); break;    // OFF or MODE=1
-    case buttons[0][1]: setMode(5); break;  // empty
-    case buttons[0][2]: prewMode(); break;  // PREW MODE
-    case buttons[0][3]: nextMode(); break;  // NEXT MODE
-
-    case buttons[1][0]: setMode(2); break;  // RED
-    case buttons[1][1]: setMode(3); break;  // GREEN
-    case buttons[1][2]: setMode(4); break;  // BLUE
-    case buttons[1][3]: setMode(1); break;  // WHITE
-
-    case buttons[2][0]: scaleMinus(); break;   // SCALE -
-    case buttons[2][1]: brightMinus(); break;  // BRIGHTNESS -
-    case buttons[2][2]: brightPlus(); break;   // BRIGHTNESS +
-    case buttons[2][3]: scalePlus(); break;    // SCALE +
-  }
-}
-
-void setMode(byte num) {
-  Serial.println("Mode set " + String(num));
-  mode = num;
-
-  switch (mode) {
-    case 0: staticColor(0, 0, 0); break;        // OFF
-    case 1: staticColor(255, 255, 255); break;  // WHITE
-    case 2: staticColor(255, 0, 0); break;      // RED
-    case 3: staticColor(0, 255, 0); break;      // GREEN
-    case 4: staticColor(0, 0, 255); break;      // BLUE
-    case 5:
-      //rainbow();
-      redraw = true;
-      break;  // RAINBOW
-  }
-}
-
-void enable() {
-  mode = !mode;
-}
-
-void scalePlus() {
-  if (scale < 10) scale++;
-}
-
-void scaleMinus() {
-  if (scale > 1) scale--;
-}
-
-void brightPlus() {
-  if (brightness + 5 < 255) {
-    brightness += 5;
-  } else {
-    brightness = 255;
-  }
-  FastLED.setBrightness(brightness);
-}
-
-void brightMinus() {
-  if (brightness - 5 > 0) {
-    brightness -= 5;
-  } else {
-    brightness = 0;
-  }
-  FastLED.setBrightness(brightness);
-}
-
-void nextMode() {
-  if (mode < modes - 1) setMode(mode + 1);
-}
-
-void prewMode() {
-  if (mode > 0) setMode(mode - 1);
-}
-
-void staticColor(byte r, byte g, byte b) {
-  redraw = false;
-  for (int i = 0; i < LED_NUM; i++) {
-    leds[i] = CRGB(r, g, b);
-  }
+  
   FastLED.show();
+
+#ifdef debug
+  analogWrite(9, leds[0].r);
+  analogWrite(5, leds[0].g);
+  analogWrite(10, leds[0].b);
+#endif
 }
 
-void rainbow() {
-  for (int i = 0; i < LED_NUM; i++) {
-    leds[i] = CHSV(counter + i * scale, 255, 255);
+void decodeIR() {
+  if (IrReceiver.decodedIRData.protocol == NEC) {
+    code = IrReceiver.decodedIRData.command;
+    buttonStart();
+#ifdef debug
+    Serial.println("Code: " + String(code));
+    Serial.println("Mode: " + String(mode));
+    Serial.println("Dir: " + String(dir));
+    Serial.println("Scale: " + String(scale));
+    Serial.println("Brightness: " + String(brightness));
+    Serial.println(String(r) + " " + String(g) + " " + String(b) + " ");
+    Serial.println(String(h) + " " + String(s) + " " + String(v) + " ");
+    Serial.println();
+#endif
   }
-  counter++;
+}
+
+void buttonStart() {
+  if (code < 23 && code >= 0) {
+    if (IrReceiver.decodedIRData.flags) {
+      if (buttons[code].useRepeat) {
+        buttons[code].callback();
+      }
+    } else {
+      buttons[code].callback();
+    }
+  }
 }
