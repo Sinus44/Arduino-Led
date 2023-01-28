@@ -18,8 +18,8 @@ void staticColorHSV(uint8_t h, uint8_t s, uint8_t v) {
 }
 
 void brightnessChange() {
-    if (dir > 0 & brightness + 5 <= 255) brightness += 5;
-    else if (dir < 0 & brightness - 5 >= 0) brightness -= 5;
+    if (dir > 0 & brightness + 10 <= 255) brightness += 10;
+    else if (dir < 0 & brightness - 10 >= 0) brightness -= 10;
     FastLED.setBrightness(brightness);
 }
 
@@ -51,7 +51,7 @@ void blueChange() {
 
 void hueChange() {
     mode = 2;
-    h+=5;
+    h += 3 * dir;
 }
 
 void saturationChange() {

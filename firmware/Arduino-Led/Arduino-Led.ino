@@ -2,13 +2,13 @@
 
 // user variables
 uint8_t mode = 0;         // Current mode (start mode)
-uint8_t brightness = 40;  // Current brightness
-uint8_t scale = 2;        // Scale, for some modes
+uint8_t brightness = 80;  // Current brightness
+uint8_t scale = 1;        // Scale, for some modes
 
 // system variables
 uint8_t code;         // Code of button
 uint8_t counter = 0;  // Iteration counter, for some modes
-uint8_t modes = 5;    // number of modes
+uint8_t modes = 6;    // number of modes
 int8_t dir = 1;
 
 uint8_t r = 255;
@@ -50,6 +50,39 @@ void setup() {
   FastLED.setBrightness(brightness);                                                    // Set default brightness
 }
 
+void decodeIR() {
+  if (IrReceiver.decodedIRData.protocol == NEC) {
+    code = IrReceiver.decodedIRData.command;
+    buttonStart();
+#ifdef debug
+    Serial.println("Code: " + String(code));
+    Serial.println("Mode: " + String(mode));
+    Serial.println("Dir: " + String(dir));
+    Serial.println("Scale: " + String(scale));
+    Serial.println("Brightness: " + String(brightness));
+    Serial.println(String(r) + " " + String(g) + " " + String(b) + " ");
+    Serial.println(String(h) + " " + String(s) + " " + String(v) + " ");
+    Serial.println();
+#endif
+  }
+}
+
+void buttonStart() {
+  if (code < 23 && code >= 0) {
+    if (IrReceiver.decodedIRData.flags) {
+      if (buttons[code].useRepeat) {
+        buttons[code].callback();
+      }
+    } else {
+      buttons[code].callback();
+    }
+  }
+}
+
+void print() {
+  Serial.println("");
+}
+
 void loop() {
   if (IrReceiver.decode()) {  // If data received
     decodeIR();               // Button handler
@@ -81,24 +114,9 @@ void loop() {
       break;
 
     case 5:
-      if (counter % 8 == 0) {
-        staticColorRGB(255, 0, 0); // red
-      } else if  (counter % 8 == 1) {
-        staticColorRGB(0, 0, 0); // black
-      } else if (counter % 8 == 2) {
-        staticColorRGB(255, 0, 0); // red
-      } else if (counter % 8 == 3) {
-        staticColorRGB(0, 0, 0); // black
-      } else if  (counter % 8 == 4) {
-        staticColorRGB(0, 0, 255); // blue
-      } else if (counter % 8 == 5) {
-        staticColorRGB(0, 0, 0); // black
-      } else if  (counter % 8 == 6) {
-        staticColorRGB(0, 0, 255); // blue
-      } else if (counter % 8 == 7) {
-        staticColorRGB(0, 0, 0); // black
+      if (counter % 5 == 0) {
+        staticColorHSV(random(0, 255), 255, 255);
       }
-      
       counter++;
       break;
   }
@@ -110,33 +128,4 @@ void loop() {
   analogWrite(5, leds[0].g);
   analogWrite(10, leds[0].b);
 #endif
-}
-
-void decodeIR() {
-  if (IrReceiver.decodedIRData.protocol == NEC) {
-    code = IrReceiver.decodedIRData.command;
-    buttonStart();
-#ifdef debug
-    Serial.println("Code: " + String(code));
-    Serial.println("Mode: " + String(mode));
-    Serial.println("Dir: " + String(dir));
-    Serial.println("Scale: " + String(scale));
-    Serial.println("Brightness: " + String(brightness));
-    Serial.println(String(r) + " " + String(g) + " " + String(b) + " ");
-    Serial.println(String(h) + " " + String(s) + " " + String(v) + " ");
-    Serial.println();
-#endif
-  }
-}
-
-void buttonStart() {
-  if (code < 23 && code >= 0) {
-    if (IrReceiver.decodedIRData.flags) {
-      if (buttons[code].useRepeat) {
-        buttons[code].callback();
-      }
-    } else {
-      buttons[code].callback();
-    }
-  }
 }
